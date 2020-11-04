@@ -7,43 +7,51 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.StampedLock;
 
 public class Almacen {
 	
 	private ArrayList<Integer> products = new ArrayList<>();
     private final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
-	private final ReadWriteLock reentrantReadWriteLock = new ReentrantReadWriteLock();
-	private final Lock readLock = reentrantReadWriteLock.readLock();
-	private final Lock writeLock = reentrantReadWriteLock.writeLock();
+    private final StampedLock stampedLock = new StampedLock();
 	
 	public void getProducts(int product) throws InterruptedException {
-		readLock.lock();
-		try {
-			System.out.println(consultProducts(product));
-		}
-		finally {
-			readLock.unlock();
-		}
-		
+        long stamp = stampedLock.tryOptimisticRead();
+        System.out.println(consultProducts(product, stamp));
 	}
 	
-	private String consultProducts(int product) throws InterruptedException{
+	private String consultProducts(int product, long stamp) throws InterruptedException{
 		int contador=0;
 		for(Integer p : products) {
 			if(p == product) {
 				contador++;
 			}
 		}
+		if (!stampedLock.validate(stamp)) {
+			stamp = stampedLock.readLock();
+			try {
+                contador = 0;
+                for(Integer p : products) {
+        			if(p == product) {
+        				contador++;
+        			}
+        		}
+            } finally {
+                stampedLock.unlockRead(stamp);
+            }
+
+		}
+		
 		return String.format("%s -> Hay %d productos de clase %d", LocalTime.now().format(dateTimeFormatter), contador, product);
 	}
 	
 	public void setProducts() throws InterruptedException {
-		writeLock.lock();
+		long stamp = stampedLock.writeLock();
 		try {
 			System.out.println(addProducts(ThreadLocalRandom.current().nextInt(1,4)));
 		}
 		finally {
-			writeLock.unlock();
+			stampedLock.unlock(stamp);
 		}
 	}
 	
