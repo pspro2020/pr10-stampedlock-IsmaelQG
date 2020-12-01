@@ -17,7 +17,7 @@ public class Consultar implements Runnable{
 				almacen.getProducts(product);
 				Thread.sleep(500);
 			} catch (InterruptedException e) {
-			
+				return;
 			}
 		}
 	}
